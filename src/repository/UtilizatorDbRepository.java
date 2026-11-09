@@ -1,10 +1,11 @@
 package repository;
 
 import domain.Utilizator;
+import domain.Tuple;
 import domain.Validator;
 
 /** Repository for persisting users in a database. */
-public class UtilizatorDbRepository implements Repository<Long, Utilizator> {
+public class UtilizatorDbRepository implements Repository<Tuple<String, String>, Utilizator> {
     private Validator<Utilizator> validator;
     private String url, user, password;
 
@@ -24,14 +25,14 @@ public class UtilizatorDbRepository implements Repository<Long, Utilizator> {
     }
 
     /**
-     * Finds a user by ID.
+     * Finds a user by name and surname.
      *
-     * @param id the user ID to search for
+     * @param id the name-and-surname pair identifying the user
      * @return the matching user
      * @throws UnsupportedOperationException because JDBC persistence is implemented in Lab 4
      */
     @Override
-    public Utilizator findOne(Long id) { throw new UnsupportedOperationException("JDBC not implemented yet"); }
+    public Utilizator findOne(Tuple<String, String> id) { throw new UnsupportedOperationException("JDBC not implemented yet"); }
 
     /**
      * Returns all users.
@@ -46,21 +47,21 @@ public class UtilizatorDbRepository implements Repository<Long, Utilizator> {
      * Saves a user.
      *
      * @param entity the user to save
-     * @return the existing user if its ID is already present; otherwise {@code null}
+     * @return the existing user if the same name-and-surname pair is present; otherwise {@code null}
      * @throws UnsupportedOperationException because JDBC persistence is implemented in Lab 4
      */
     @Override
     public Utilizator save(Utilizator entity) { throw new UnsupportedOperationException("JDBC not implemented yet"); }
 
     /**
-     * Deletes a user by ID.
+     * Deletes a user by name and surname.
      *
-     * @param id the ID of the user to delete
-     * @return the deleted user, or {@code null} if no user has that ID
+     * @param id the name-and-surname pair identifying the user
+     * @return the deleted user, or {@code null} if no user has that name and surname
      * @throws UnsupportedOperationException because JDBC persistence is implemented in Lab 4
      */
     @Override
-    public Utilizator delete(Long id) { throw new UnsupportedOperationException("JDBC not implemented yet"); }
+    public Utilizator delete(Tuple<String, String> id) { throw new UnsupportedOperationException("JDBC not implemented yet"); }
 
     /**
      * Updates an existing user.

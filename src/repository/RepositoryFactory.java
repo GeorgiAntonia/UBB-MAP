@@ -8,9 +8,13 @@ import exceptions.RepositoryException;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Creates repositories according to the persistence configuration.
@@ -18,6 +22,8 @@ import java.util.Properties;
 public class RepositoryFactory {
     private final Properties properties;
     private final RepositoryType repositoryType;
+    private final Map<RepositoryType, Function<Validator<Utilizator>, Repository<Tuple<String, String>, Utilizator>>> userRepositories;
+    private final Map<RepositoryType, Function<Validator<Prietenie>, Repository<Tuple<Tuple<String, String>, Tuple<String, String>>, Prietenie>>> friendshipRepositories;
 
     /**
      * Loads {@code config.properties} from the application classpath.
@@ -35,6 +41,29 @@ public class RepositoryFactory {
             throw new RepositoryException("Error loading configuration properties", e);
         }
         repositoryType = readRepositoryType();
+        userRepositories = new HashMap<>();
+        userRepositories.put(RepositoryType.MEMORY,
+                validator -> new InMemoryRepository<>(validator, entity -> new Tuple<>(entity.getNume(), entity.getPrenume())));
+        userRepositories.put(RepositoryType.FILE,
+                validator -> new UtilizatorFileRepository(validator, requiredProperty("utilizator.file")));
+        userRepositories.put(RepositoryType.DATABASE,
+                validator -> new UtilizatorDbRepository(
+                        validator,
+                        requiredProperty("db.url"),
+                        requiredProperty("db.user"),
+                        requiredProperty("db.password")));
+
+        friendshipRepositories = new HashMap<>();
+        friendshipRepositories.put(RepositoryType.MEMORY,
+                validator -> new InMemoryRepository<>(validator, Prietenie::getId));
+        friendshipRepositories.put(RepositoryType.FILE,
+                validator -> new PrietenieFileRepository(validator, requiredProperty("prietenie.file")));
+        friendshipRepositories.put(RepositoryType.DATABASE,
+                validator -> new PrietenieDbRepository(
+                        validator,
+                        requiredProperty("db.url"),
+                        requiredProperty("db.user"),
+                        requiredProperty("db.password")));
     }
 
     /**
@@ -44,22 +73,12 @@ public class RepositoryFactory {
      * @return the configured user repository
      * @throws RepositoryException if a required configuration value is missing
      */
-    public Repository<Long, Utilizator> createUtilizatorRepository(Validator<Utilizator> validator) {
-        switch (repositoryType) {
-            case MEMORY:
-                return new InMemoryRepository<>(validator);
-            case FILE:
-                return new UtilizatorFileRepository(validator, requiredProperty("utilizator.file"));
-            case DATABASE:
-                return new UtilizatorDbRepository(
-                        validator,
-                        requiredProperty("db.url"),
-                        requiredProperty("db.user"),
-                        requiredProperty("db.password")
-                );
-            default:
-                throw new RepositoryException("Unknown repository type: " + repositoryType);
+    public Repository<Tuple<String, String>, Utilizator> createUtilizatorRepository(Validator<Utilizator> validator) {
+        Function<Validator<Utilizator>, Repository<Tuple<String, String>, Utilizator>> factory = userRepositories.get(repositoryType);
+        if (factory == null) {
+            throw new RepositoryException("Unknown repository type: " + repositoryType);
         }
+        return factory.apply(validator);
     }
 
     /**
@@ -69,22 +88,12 @@ public class RepositoryFactory {
      * @return the configured friendship repository
      * @throws RepositoryException if a required configuration value is missing
      */
-    public Repository<Tuple<Long, Long>, Prietenie> createPrietenieRepository(Validator<Prietenie> validator) {
-        switch (repositoryType) {
-            case MEMORY:
-                return new InMemoryRepository<>(validator);
-            case FILE:
-                return new PrietenieFileRepository(validator, requiredProperty("prietenie.file"));
-            case DATABASE:
-                return new PrietenieDbRepository(
-                        validator,
-                        requiredProperty("db.url"),
-                        requiredProperty("db.user"),
-                        requiredProperty("db.password")
-                );
-            default:
-                throw new RepositoryException("Unknown repository type: " + repositoryType);
+    public Repository<Tuple<Tuple<String, String>, Tuple<String, String>>, Prietenie> createPrietenieRepository(Validator<Prietenie> validator) {
+        Function<Validator<Prietenie>, Repository<Tuple<Tuple<String, String>, Tuple<String, String>>, Prietenie>> factory = friendshipRepositories.get(repositoryType);
+        if (factory == null) {
+            throw new RepositoryException("Unknown repository type: " + repositoryType);
         }
+        return factory.apply(validator);
     }
 
     /**
@@ -95,28 +104,28 @@ public class RepositoryFactory {
      * @param friendships the friendship repository
      */
     public void initializeFriendships(
-            Repository<Long, Utilizator> users,
-            Repository<Tuple<Long, Long>, Prietenie> friendships) {
+            Repository<Tuple<String, String>, Utilizator> users,
+            Repository<Tuple<Tuple<String, String>, Tuple<String, String>>, Prietenie> friendships) {
         if (repositoryType != RepositoryType.FILE) {
             return;
         }
 
-        List<Tuple<Long, Long>> invalidFriendships = new ArrayList<>();
-        for (Prietenie friendship : friendships.findAll()) {
-            Long firstId = friendship.getId().getFirst();
-            Long secondId = friendship.getId().getSecond();
-            Utilizator first = users.findOne(firstId);
-            Utilizator second = users.findOne(secondId);
-            if (first == null || second == null) {
-                invalidFriendships.add(friendship.getId());
-            } else {
-                first.addPrieten(second);
-                second.addPrieten(first);
-            }
-        }
-        for (Tuple<Long, Long> id : invalidFriendships) {
-            friendships.delete(id);
-        }
+        List<Tuple<Tuple<String, String>, Tuple<String, String>>> invalidFriendships = StreamSupport.stream(friendships.findAll().spliterator(), false)
+                .map(Prietenie::getId)
+                .filter(id -> users.findOne(id.getFirst()) == null || users.findOne(id.getSecond()) == null)
+                .collect(Collectors.toList());
+
+        invalidFriendships.forEach(friendships::delete);
+        StreamSupport.stream(friendships.findAll().spliterator(), false)
+                .map(Prietenie::getId)
+                .forEach(id -> {
+                    Utilizator first = users.findOne(id.getFirst());
+                    Utilizator second = users.findOne(id.getSecond());
+                    if (first != null && second != null) {
+                        first.addPrieten(second);
+                        second.addPrieten(first);
+                    }
+                });
     }
 
     /**
