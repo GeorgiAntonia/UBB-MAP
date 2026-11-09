@@ -2,8 +2,9 @@ package domain;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 /** Represents a user in the social network and maintains the user's friends. */
-public class Utilizator extends Entity<Long> {
+public class Utilizator {
     private String nume;
     private String prenume;
     private List<Utilizator> prieteni;
@@ -82,25 +83,17 @@ public class Utilizator extends Entity<Long> {
         this.prieteni.remove(prieten);
     }
 
-    /**
-     * Compares users by their inherited entity identifiers.
-     *
-     * @param o the object to compare
-     * @return {@code true} if {@code o} is an entity with the same identifier
-     */
     @Override
     public boolean equals(Object o) {
-        return super.equals(o);
+        if (this == o) return true;
+        if (!(o instanceof Utilizator)) return false;
+        Utilizator that = (Utilizator) o;
+        return Objects.equals(nume, that.nume) && Objects.equals(prenume, that.prenume);
     }
 
-    /**
-     * Computes a hash code from the inherited entity identifier.
-     *
-     * @return the user's hash code
-     */
     @Override
     public int hashCode() {
-        return super.hashCode();
+        return Objects.hash(nume, prenume);
     }
 
     /**
@@ -111,8 +104,7 @@ public class Utilizator extends Entity<Long> {
     @Override
     public String toString() {
         return "Utilizator{" +
-                "id='" + getId() + '\'' +
-                ", nume='" + nume + '\'' +
+                "nume='" + nume + '\'' +
                 ", prenume='" + prenume + '\'' +
                 '}';
     }

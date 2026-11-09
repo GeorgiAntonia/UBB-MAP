@@ -5,7 +5,7 @@ import domain.Tuple;
 import domain.Validator;
 
 /** Repository for persisting friendships in a database. */
-public class PrietenieDbRepository implements Repository<Tuple<Long, Long>, Prietenie> {
+public class PrietenieDbRepository implements Repository<Tuple<Tuple<String, String>, Tuple<String, String>>, Prietenie> {
     private Validator<Prietenie> validator;
     private String url, user, password;
 
@@ -25,14 +25,14 @@ public class PrietenieDbRepository implements Repository<Tuple<Long, Long>, Prie
     }
 
     /**
-     * Finds a friendship by its user-ID pair.
+     * Finds a friendship by its two name-and-surname pairs.
      *
-     * @param id the user-ID pair identifying the friendship
+     * @param id the two name-and-surname pairs identifying the friendship
      * @return the matching friendship
      * @throws UnsupportedOperationException because JDBC persistence is implemented in Lab 4
      */
     @Override
-    public Prietenie findOne(Tuple<Long, Long> id) { throw new UnsupportedOperationException("JDBC not implemented yet"); }
+    public Prietenie findOne(Tuple<Tuple<String, String>, Tuple<String, String>> id) { throw new UnsupportedOperationException("JDBC not implemented yet"); }
 
     /**
      * Returns all friendships.
@@ -47,21 +47,21 @@ public class PrietenieDbRepository implements Repository<Tuple<Long, Long>, Prie
      * Saves a friendship.
      *
      * @param entity the friendship to save
-     * @return the existing friendship if its ID is already present; otherwise {@code null}
+     * @return the existing friendship if the same name-and-surname pairs are present; otherwise {@code null}
      * @throws UnsupportedOperationException because JDBC persistence is implemented in Lab 4
      */
     @Override
     public Prietenie save(Prietenie entity) { throw new UnsupportedOperationException("JDBC not implemented yet"); }
 
     /**
-     * Deletes a friendship by its user-ID pair.
+     * Deletes a friendship by its two name-and-surname pairs.
      *
-     * @param id the user-ID pair identifying the friendship
+     * @param id the two name-and-surname pairs identifying the friendship
      * @return the deleted friendship, or {@code null} if none has that ID
      * @throws UnsupportedOperationException because JDBC persistence is implemented in Lab 4
      */
     @Override
-    public Prietenie delete(Tuple<Long, Long> id) { throw new UnsupportedOperationException("JDBC not implemented yet"); }
+    public Prietenie delete(Tuple<Tuple<String, String>, Tuple<String, String>> id) { throw new UnsupportedOperationException("JDBC not implemented yet"); }
 
     /**
      * Updates an existing friendship.

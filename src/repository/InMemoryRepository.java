@@ -1,11 +1,11 @@
 package repository;
 
-import domain.Entity;
 import exceptions.ValidationException;
 import domain.Validator;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 
 /**
@@ -14,17 +14,19 @@ import java.util.Map;
  * @param <ID> the identifier type
  * @param <E> the entity type
  */
-public class InMemoryRepository<ID, E extends Entity<ID>> implements Repository<ID, E> {
+public class InMemoryRepository<ID, E> implements Repository<ID, E> {
     private Validator<E> validator;
     Map<ID, E> entities;
+    private final Function<E, ID> keyExtractor;
 
     /**
      * Creates an empty repository using the supplied validator.
      *
      * @param validator the validator used
      */
-    public InMemoryRepository(Validator<E> validator) {
+    public InMemoryRepository(Validator<E> validator, Function<E, ID> keyExtractor) {
         this.validator = validator;
+        this.keyExtractor = keyExtractor;
         entities = new HashMap<>();
     }
 
@@ -38,7 +40,7 @@ public class InMemoryRepository<ID, E extends Entity<ID>> implements Repository<
     @Override
     public E findOne(ID id) {
         if (id == null) {
-            throw new IllegalArgumentException("Id-ul nu poate fi null!");
+            throw new IllegalArgumentException("The ID cannot be null!");
         }
         return entities.get(id);
     }
@@ -64,13 +66,14 @@ public class InMemoryRepository<ID, E extends Entity<ID>> implements Repository<
     @Override
     public E save(E entity) {
         if (entity == null) {
-            throw new IllegalArgumentException("Entitatea nu poate fi null!");
+            throw new IllegalArgumentException("The entity cannot be null!");
         }
         validator.validate(entity);
-        if (entities.containsKey(entity.getId())) {
-            return entities.get(entity.getId());
+        ID key = keyExtractor.apply(entity);
+        if (entities.containsKey(key)) {
+            return entities.get(key);
         }
-        entities.put(entity.getId(), entity);
+        entities.put(key, entity);
         return null;
     }
 
@@ -84,7 +87,7 @@ public class InMemoryRepository<ID, E extends Entity<ID>> implements Repository<
     @Override
     public E delete(ID id) {
         if (id == null) {
-            throw new IllegalArgumentException("Id-ul nu poate fi null!");
+            throw new IllegalArgumentException("The ID cannot be null!");
         }
         return entities.remove(id);
     }
@@ -100,11 +103,12 @@ public class InMemoryRepository<ID, E extends Entity<ID>> implements Repository<
     @Override
     public E update(E entity) {
         if (entity == null) {
-            throw new IllegalArgumentException("Entitatea nu poate fi null!");
+            throw new IllegalArgumentException("The entity cannot be null!");
         }
         validator.validate(entity);
-        if (entities.containsKey(entity.getId())) {
-            entities.put(entity.getId(), entity);
+        ID key = keyExtractor.apply(entity);
+        if (entities.containsKey(key)) {
+            entities.put(key, entity);
             return null;
         }
         return entity;

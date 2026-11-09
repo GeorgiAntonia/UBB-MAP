@@ -1,16 +1,21 @@
 package repository;
 
-import domain.Entity;
 import domain.Validator;
 import exceptions.RepositoryException;
 import exceptions.ValidationException;
 
-import java.io.*;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.format.DateTimeParseException;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Provides file loading and persistence for validated entities.
@@ -18,7 +23,7 @@ import java.time.format.DateTimeParseException;
  * @param <ID> the identifier type
  * @param <E> the entity type
  */
-public abstract class AbstractFileRepository<ID, E extends Entity<ID>> extends InMemoryRepository<ID, E> {
+public abstract class AbstractFileRepository<ID, E> extends InMemoryRepository<ID, E> {
     private final String filename;
 
     /**
@@ -27,8 +32,8 @@ public abstract class AbstractFileRepository<ID, E extends Entity<ID>> extends I
      * @param validator the validator applied to loaded and saved entities
      * @param filename the relative or absolute file path
      */
-    public AbstractFileRepository(Validator<E> validator, String filename) {
-        super(validator);
+    public AbstractFileRepository(Validator<E> validator, String filename, Function<E, ID> keyExtractor) {
+        super(validator, keyExtractor);
         this.filename = filename;
         loadData();
     }
@@ -54,23 +59,23 @@ public abstract class AbstractFileRepository<ID, E extends Entity<ID>> extends I
         Path path = Paths.get(filename);
         if (!Files.exists(path)) return;
 
-        try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            String line;
-            int lineNumber = 0;
-            while ((line = br.readLine()) != null) {
-                lineNumber++;
-                try {
-                    E entity = extractEntity(line);
-                    E duplicate = super.save(entity);
-                    if (duplicate != null) {
-                        System.err.println("Linie corupta ignorata in " + filename + " la linia " + lineNumber + ": ID duplicat.");
-                    }
-                } catch (IllegalArgumentException | DateTimeParseException | ValidationException e) {
-                    System.err.println("Linie corupta ignorata in " + filename + " la linia " + lineNumber + ": " + e.getMessage());
-                }
-            }
+        try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
+            List<String> allLines = lines.collect(Collectors.toList());
+            IntStream.range(0, allLines.size())
+                    .forEach(index -> {
+                        String line = allLines.get(index);
+                        try {
+                            E entity = extractEntity(line);
+                            E duplicate = super.save(entity);
+                            if (duplicate != null) {
+                                System.err.println("Corrupted line ignored in " + filename + " at line " + (index + 1) + ": duplicate entity.");
+                            }
+                        } catch (IllegalArgumentException | DateTimeParseException | ValidationException e) {
+                            System.err.println("Corrupted line ignored in " + filename + " at line " + (index + 1) + ": " + e.getMessage());
+                        }
+                    });
         } catch (IOException e) {
-            throw new RepositoryException("Eroare la citirea fisierului " + filename, e);
+            throw new RepositoryException("Error reading file " + filename, e);
         }
     }
 
@@ -83,16 +88,16 @@ public abstract class AbstractFileRepository<ID, E extends Entity<ID>> extends I
                 Files.createDirectories(parent);
             }
         } catch (IOException e) {
-            throw new RepositoryException("Eroare la crearea directorului pentru " + filename, e);
+            throw new RepositoryException("Error creating the directory for " + filename, e);
         }
 
-        try (BufferedWriter bw = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
-            for (E entity : findAll()) {
-                bw.write(createEntityAsString(entity));
-                bw.newLine();
-            }
+        try {
+            List<String> lines = StreamSupport.stream(findAll().spliterator(), false)
+                    .map(this::createEntityAsString)
+                    .collect(Collectors.toList());
+            Files.write(path, lines, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new RepositoryException("Eroare la scrierea in fisierul " + filename, e);
+            throw new RepositoryException("Error writing to file " + filename, e);
         }
     }
 

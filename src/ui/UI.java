@@ -2,6 +2,7 @@ package ui;
 
 import domain.Utilizator;
 import domain.Prietenie;
+import domain.Tuple;
 import exceptions.*;
 import service.PrietenieService;
 import service.UtilizatorService;
@@ -23,7 +24,7 @@ public class UI {
      */
     public UI(UtilizatorService utilizatorService, PrietenieService prietenieService) {
         if (utilizatorService == null || prietenieService == null) {
-            throw new IllegalArgumentException("Serviciile nu pot fi null!");
+            throw new IllegalArgumentException("The services cannot be null!");
         }
         this.utilizatorService = utilizatorService;
         this.prietenieService = prietenieService;
@@ -39,17 +40,17 @@ public class UI {
     public void start() {
         boolean running = true;
         while (running) {
-            System.out.println("\n--- Retea de Socializare ---");
-            System.out.println("1. Adauga utilizator");
-            System.out.println("2. Sterge utilizator");
-            System.out.println("3. Adauga prietenie");
-            System.out.println("4. Sterge prietenie");
-            System.out.println("5. Afiseaza numarul de comunitati");
-            System.out.println("6. Afiseaza cea mai sociabila comunitate");
-            System.out.println("7. Afiseaza toti utilizatorii");
-            System.out.println("8. Afiseaza toate prieteniile");
-            System.out.println("0. Iesire");
-            System.out.print("Alegeti o optiune: ");
+            System.out.println("\n--- Social Network ---");
+            System.out.println("1. Add user");
+            System.out.println("2. Delete user");
+            System.out.println("3. Add friendship");
+            System.out.println("4. Delete friendship");
+            System.out.println("5. Show number of communities");
+            System.out.println("6. Show the most sociable community");
+            System.out.println("7. Show all users");
+            System.out.println("8. Show all friendships");
+            System.out.println("0. Exit");
+            System.out.print("Choose an option: ");
 
             String optiune = scanner.nextLine();
 
@@ -83,14 +84,14 @@ public class UI {
                         running = false;
                         break;
                     default:
-                        System.out.println("Optiune invalida!");
+                        System.out.println("Invalid option!");
                 }
             } catch (ValidationException | RepositoryException | ServiceException e) {
-                System.out.println("Eroare: " + e.getMessage());
+                System.out.println("Error: " + e.getMessage());
             } catch (IllegalArgumentException e) {
-                System.out.println("Date introduse invalide: " + e.getMessage());
+                System.out.println("Invalid input: " + e.getMessage());
             } catch (UnsupportedOperationException e) {
-                System.out.println("Operatia nu este implementata pentru repository-ul configurat: " + e.getMessage());
+                System.out.println("The operation is not implemented for the configured repository: " + e.getMessage());
             }
         }
     }
@@ -98,112 +99,107 @@ public class UI {
     /**
      * Reads and adds a user using values entered in the console.
      *
-     * @throws NumberFormatException if the entered ID is not a valid long
-     * @throws ServiceException if a user with that ID already exists
+     * @throws ServiceException if a user with that name and surname already exists
      * @throws ValidationException if the user fields fail validation
      * @throws RepositoryException if persistence fails
      */
     private void addUtilizator() {
-        System.out.print("Introduceti ID: ");
-        Long id = Long.parseLong(scanner.nextLine());
-
-        System.out.print("Nume: ");
+        System.out.print("Last name: ");
         String nume = scanner.nextLine();
 
-        System.out.print("Prenume: ");
+        System.out.print("First name: ");
         String prenume = scanner.nextLine();
-
         Utilizator u = new Utilizator(nume, prenume);
-        u.setId(id);
         utilizatorService.addUtilizator(u);
-        System.out.println("Utilizator adaugat cu succes!");
+        System.out.println("User added successfully!");
     }
 
     /**
-     * Reads a user ID and removes that user from the network.
+     * Reads a user's name and surname and removes that user from the network.
      *
-     * @throws NumberFormatException if the entered ID is not a valid long
-     * @throws IllegalArgumentException if the ID is {@code null}
+     * @throws IllegalArgumentException if the user key is {@code null}
      * @throws RepositoryException if persistence fails
      */
     private void delUtilizator() {
-        System.out.print("ID-ul utilizatorului de sters: ");
-        Long id = Long.parseLong(scanner.nextLine());
+        Tuple<String, String> id = readUserKey("user to delete");
         Utilizator sters = utilizatorService.delUtilizator(id);
         if (sters != null) {
-            System.out.println("Utilizatorul a fost sters.");
+            System.out.println("The user was deleted.");
         } else {
-            System.out.println("Utilizatorul nu a fost gasit.");
+            System.out.println("The user was not found.");
         }
     }
 
     /**
-     * Reads two user IDs and creates a friendship between them.
+     * Reads two user name-and-surname pairs and creates a friendship between them.
      *
-     * @throws NumberFormatException if either entered ID is not a valid long
      * @throws ValidationException if the friendship cannot be created
      * @throws ServiceException if either user is missing
      * @throws RepositoryException if persistence fails
      */
     private void addPrietenie() {
-        System.out.print("ID utilizator 1: ");
-        Long id1 = Long.parseLong(scanner.nextLine());
-        System.out.print("ID utilizator 2: ");
-        Long id2 = Long.parseLong(scanner.nextLine());
+        Tuple<String, String> id1 = readUserKey("first user");
+        Tuple<String, String> id2 = readUserKey("second user");
 
         prietenieService.addPrietenie(id1, id2);
-        System.out.println("Prietenie adaugata cu succes!");
+        System.out.println("Friendship added successfully!");
     }
 
     /**
-     * Reads two user IDs and removes the friendship between them, if present.
-     *
-     * @throws NumberFormatException if either entered ID is not a valid long
+     * Reads two user name-and-surname pairs and removes the friendship between them, if present.
      */
     private void delPrietenie() {
-        System.out.print("ID utilizator 1: ");
-        Long id1 = Long.parseLong(scanner.nextLine());
-        System.out.print("ID utilizator 2: ");
-        Long id2 = Long.parseLong(scanner.nextLine());
+        Tuple<String, String> id1 = readUserKey("first user");
+        Tuple<String, String> id2 = readUserKey("second user");
 
         if (prietenieService.delPrietenie(id1, id2) == null) {
-            System.out.println("Prietenia nu a fost gasita.");
+            System.out.println("The friendship was not found.");
         } else {
-            System.out.println("Prietenie stearsa.");
+            System.out.println("Friendship removed.");
         }
     }
 
     /** Prints the number of connected communities. */
     private void showNrComunitati() {
         int nr = prietenieService.getNrComunitati();
-        System.out.println("Numarul de comunitati (componente conexe): " + nr);
+        System.out.println("Number of communities (connected components): " + nr);
     }
 
-    /** Prints the IDs of the users in the most sociable community. */
+    /** Prints the users in the most sociable community. */
     private void showMostSociabilaComunitate() {
-        System.out.println("Cea mai sociabila comunitate este formata din utilizatorii cu ID-urile: " +
-                prietenieService.getMostSociabilaComunitate());
+        System.out.println("The most sociable community consists of users:");
+        prietenieService.getMostSociabilaComunitate().stream()
+                .map(user -> user.getFirst() + " " + user.getSecond())
+                .forEach(System.out::println);
     }
 
     /** Prints every user in the network. */
     private void showUtilizatori() {
-        System.out.println("Utilizatorii din retea:");
-        for (Utilizator utilizator : utilizatorService.getAllUtilizatori()) {
-            System.out.println(utilizator);
-        }
+        System.out.println("Users in the network:");
+        utilizatorService.getAllUtilizatori().forEach(System.out::println);
     }
 
     /** Prints every friendship in the network. */
     private void showPrietenii() {
-        boolean existaPrietenii = false;
-        System.out.println("Prieteniile din retea:");
-        for (Prietenie prietenie : prietenieService.getAllPrietenie()) {
-            System.out.println(prietenie.getId().getFirst() + ";" +
-                    prietenie.getId().getSecond() + ";" + prietenie.getData());
-            existaPrietenii = true;
+        final boolean[] existaPrietenii = {false};
+        System.out.println("Friendships in the network:");
+        prietenieService.getAllPrietenie().forEach(prietenie -> {
+            Tuple<Tuple<String, String>, Tuple<String, String>> id = prietenie.getId();
+            System.out.println(id.getFirst().getFirst() + " " + id.getFirst().getSecond() + " <-> " +
+                    id.getSecond().getFirst() + " " + id.getSecond().getSecond() + ";" + prietenie.getData());
+            existaPrietenii[0] = true;
+        });
+        if (!existaPrietenii[0]) {
+            System.out.println("There are no friendships.");
         }
-        if (!existaPrietenii) {
-            System.out.println("Nu exista prietenii.");
-        }
+    }
+
+    private Tuple<String, String> readUserKey(String label) {
+        System.out.println("Enter the data for " + label + ":");
+        System.out.print("Last name: ");
+        String nume = scanner.nextLine();
+        System.out.print("First name: ");
+        String prenume = scanner.nextLine();
+        return new Tuple<>(nume, prenume);
     }
 }

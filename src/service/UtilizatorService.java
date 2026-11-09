@@ -1,16 +1,19 @@
 package service;
 
+import domain.Tuple;
 import domain.Utilizator;
 import exceptions.RepositoryException;
 import exceptions.ServiceException;
 import exceptions.ValidationException;
 import repository.Repository;
 
+import java.util.Optional;
+
 /**
  * Provides operations for managing users in the social network.
  */
 public class UtilizatorService {
-    private final Repository<Long, Utilizator> utilizatorRepository;
+    private final Repository<Tuple<String, String>, Utilizator> utilizatorRepository;
     private final PrietenieService prietenieService;
 
     /**
@@ -21,10 +24,10 @@ public class UtilizatorService {
      * @throws IllegalArgumentException if either argument is {@code null}
      */
     public UtilizatorService(
-            Repository<Long, Utilizator> utilizatorRepository,
+            Repository<Tuple<String, String>, Utilizator> utilizatorRepository,
             PrietenieService prietenieService) {
         if (utilizatorRepository == null || prietenieService == null) {
-            throw new IllegalArgumentException("Repository-ul si serviciul nu pot fi null!");
+            throw new IllegalArgumentException("The repository and service cannot be null!");
         }
         this.utilizatorRepository = utilizatorRepository;
         this.prietenieService = prietenieService;
@@ -35,7 +38,7 @@ public class UtilizatorService {
      *
      * @param utilizator the user to add
      * @throws IllegalArgumentException if {@code utilizator} is {@code null}
-     * @throws ServiceException if a user with the same ID already exists
+     * @throws ServiceException if a user with the same name and surname already exists
      * @throws ValidationException if the user is invalid
      * @throws RepositoryException if persistence fails
      * @throws UnsupportedOperationException if the configured repository is not implemented
@@ -47,15 +50,25 @@ public class UtilizatorService {
     }
 
     /**
+     * Finds a user by identifier.
+     *
+     * @param id the user key to search for
+     * @return the matching user wrapped in an Optional
+     */
+    public Optional<Utilizator> findUtilizator(Tuple<String, String> id) {
+        return Optional.ofNullable(utilizatorRepository.findOne(id));
+    }
+
+    /**
      * Removes a user from the network.
      *
-     * @param id the ID of the user to remove
-     * @return the removed user, or {@code null} if the ID is not present
+     * @param id the name and surname identifying the user to remove
+     * @return the removed user, or {@code null} if the user is not present
      * @throws IllegalArgumentException if {@code id} is {@code null}
      * @throws RepositoryException if persistence fails
      * @throws UnsupportedOperationException if the configured repository is not implemented
      */
-    public Utilizator delUtilizator(Long id) {
+    public Utilizator delUtilizator(Tuple<String, String> id) {
         Utilizator user = utilizatorRepository.findOne(id);
         if (user == null) {
             return null;
