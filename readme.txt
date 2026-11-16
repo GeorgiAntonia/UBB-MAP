@@ -3,16 +3,33 @@ repository.type poate fi MEMORY, FILE sau DATABASE. RepositoryFactory creeaza am
 repository-uri pentru tipul configurat.
 
 Pentru baza de date, se seteaza repository.type=DATABASE. Repository-urile DB sunt
-doar schelete; metodele trebuie implementate.
+implementate cu JDBC si folosesc tabelele `users` si `friendships` din
+`data/schema.sql`. Proiectul foloseste PostgreSQL.
+
+Repository-urile DB folosesc `PreparedStatement` pentru interogari si leaga valorile
+prin parametri (`?`), astfel incat date precum `'); DROP TABLE users; --` sunt
+salvate ca text obisnuit si nu sunt executate ca SQL. Utilizatorii sunt stersi dupa
+ID, iar operatiile de creare si stergere a unei prietenii folosesc ID-urile celor
+doi utilizatori.
+
+Cheile straine din `friendships` folosesc `ON DELETE CASCADE` pentru a pastra
+integritatea referentiala chiar daca utilizatorul este sters direct din baza de date.
+Serviciul sterge explicit prieteniile inaintea utilizatorului si pentru a actualiza
+listele de prieteni tinute in memorie.
 
 Repository-urile FILE citesc datele la pornire si rescriu fisierul dupa fiecare
 salvare, stergere sau actualizare. Daca fisierul lipseste, repository-ul porneste gol
 si fisierul se creeaza la prima salvare. Liniile invalide sunt raportate cu numarul
 liniei si ignorate.
 
-Utilizatorii sunt identificati unic prin perechea nume-prenume, fara ID separat.
-Fisierul utilizatorilor contine cate o linie `prenume;nume`, iar fisierul
-prietenilor contine `nume1;prenume1;nume2;prenume2;data`.
+Utilizatorii sunt identificati prin ID-ul `BIGINT` generat de repository-ul de
+persistenta; in modul DATABASE, acesta este generat de coloana identity a bazei de
+date. Numele si prenumele sunt pastrate separat. Prieteniile sunt identificate prin
+perechea ordonata de ID-uri `(id1, id2)`, aliniata cheii primare si constrangerii
+`id1 < id2` din baza de date. Fisierele folosesc formatul
+`id;prenume;nume` pentru utilizatori si `id1;id2;data` pentru prietenii.
+Formatele anterioare fara ID sunt acceptate la incarcarea fisierelor; urmatoarea
+modificare rescrie fisierul in formatul nou.
 
 Validarea datelor: validatorul este folosit de repository la salvarea entitatilor,
 inclusiv la incarcarea lor din fisiere. Astfel, sunt validate atat datele introduse
@@ -43,8 +60,9 @@ Interfete functionale si cautari:
   Validatorul prieteniei este definit tot printr-o lambda.
 - Repository.findAll(Predicate<E>) filtreaza rezultatele, iar CriteriiUtilizator
   furnizeaza predicate care pot fi combinate.
-- RepositoryFactory foloseste map-uri de Function pentru crearea ambelor tipuri de
-  repository-uri, in functie de RepositoryType.
+- RepositoryFactory foloseste map-uri de Function pentru repository-urile MEMORY
+  si DATABASE; repository-ul FILE pentru prietenii primeste si repository-ul
+  utilizatorilor pentru a migra fisierele cu chei bazate pe nume.
 - Sunt folosite referinte la metode pentru metode ale unui obiect oarecare si ale
   unui obiect anume, de exemplu Prietenie::getId, this::createEntityAsString,
   friendships::delete si System.out::println.
@@ -59,7 +77,7 @@ Decizii pentru API:
 - Pentru repository-urile pe fisier se pastreaza Template Method, cu
   AbstractFileRepository si metode de conversie definite de subclase. Citirea
   foloseste Files.lines intr-un try-with-resources, iar scrierea foloseste Files.write
-  cu liniile colectate dintr-un stream. Formatul fisierelor ramane neschimbat.
+  cu liniile colectate dintr-un stream.
 
 Metoda                                      Inainte                             Dupa
 PrietenieService.delPrieteniiUtilizator     parcurgere si conditie              map, filter, forEach

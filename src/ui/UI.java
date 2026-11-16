@@ -111,17 +111,17 @@ public class UI {
         String prenume = scanner.nextLine();
         Utilizator u = new Utilizator(nume, prenume);
         utilizatorService.addUtilizator(u);
-        System.out.println("User added successfully!");
+        System.out.println("User added successfully! ID: " + u.getId());
     }
 
     /**
-     * Reads a user's name and surname and removes that user from the network.
+     * Reads a user's ID and removes that user from the network.
      *
-     * @throws IllegalArgumentException if the user key is {@code null}
+     * @throws IllegalArgumentException if the ID is invalid
      * @throws RepositoryException if persistence fails
      */
     private void delUtilizator() {
-        Tuple<String, String> id = readUserKey("user to delete");
+        long id = readId("user to delete");
         Utilizator sters = utilizatorService.delUtilizator(id);
         if (sters != null) {
             System.out.println("The user was deleted.");
@@ -131,26 +131,26 @@ public class UI {
     }
 
     /**
-     * Reads two user name-and-surname pairs and creates a friendship between them.
+     * Reads two user IDs and creates a friendship between them.
      *
      * @throws ValidationException if the friendship cannot be created
      * @throws ServiceException if either user is missing
      * @throws RepositoryException if persistence fails
      */
     private void addPrietenie() {
-        Tuple<String, String> id1 = readUserKey("first user");
-        Tuple<String, String> id2 = readUserKey("second user");
+        long id1 = readId("first user");
+        long id2 = readId("second user");
 
         prietenieService.addPrietenie(id1, id2);
         System.out.println("Friendship added successfully!");
     }
 
     /**
-     * Reads two user name-and-surname pairs and removes the friendship between them, if present.
+     * Reads two user IDs and removes the friendship between them, if present.
      */
     private void delPrietenie() {
-        Tuple<String, String> id1 = readUserKey("first user");
-        Tuple<String, String> id2 = readUserKey("second user");
+        long id1 = readId("first user");
+        long id2 = readId("second user");
 
         if (prietenieService.delPrietenie(id1, id2) == null) {
             System.out.println("The friendship was not found.");
@@ -184,9 +184,13 @@ public class UI {
         final boolean[] existaPrietenii = {false};
         System.out.println("Friendships in the network:");
         prietenieService.getAllPrietenie().forEach(prietenie -> {
-            Tuple<Tuple<String, String>, Tuple<String, String>> id = prietenie.getId();
-            System.out.println(id.getFirst().getFirst() + " " + id.getFirst().getSecond() + " <-> " +
-                    id.getSecond().getFirst() + " " + id.getSecond().getSecond() + ";" + prietenie.getData());
+            Tuple<Long, Long> id = prietenie.getId();
+            Utilizator first = utilizatorService.findUtilizatorById(id.getFirst())
+                    .orElseThrow(() -> new ServiceException("A friendship refers to a missing user."));
+            Utilizator second = utilizatorService.findUtilizatorById(id.getSecond())
+                    .orElseThrow(() -> new ServiceException("A friendship refers to a missing user."));
+            System.out.println(id.getFirst() + " (" + first.getNume() + " " + first.getPrenume() + ") - " +
+                    id.getSecond() + " (" + second.getNume() + " " + second.getPrenume() + ");" + prietenie.getData());
             existaPrietenii[0] = true;
         });
         if (!existaPrietenii[0]) {
@@ -201,5 +205,14 @@ public class UI {
         System.out.print("First name: ");
         String prenume = scanner.nextLine();
         return new Tuple<>(nume, prenume);
+    }
+
+    private long readId(String label) {
+        System.out.print("Enter ID for " + label + ": ");
+        try {
+            return Long.parseLong(scanner.nextLine().trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("ID must be a whole number.", e);
+        }
     }
 }

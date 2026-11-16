@@ -34,15 +34,20 @@ public class Main {
             };
 
             RepositoryFactory factory = new RepositoryFactory();
-            Repository<Tuple<String, String>, Utilizator> utilizatorRepository = factory.createUtilizatorRepository(utilizatorValidator);
-            Repository<Tuple<Tuple<String, String>, Tuple<String, String>>, Prietenie> prietenieRepository = factory.createPrietenieRepository(prietenieValidator);
+            Repository<Long, Utilizator> utilizatorRepository = factory.createUtilizatorRepository(utilizatorValidator);
+            Repository<Tuple<Long, Long>, Prietenie> prietenieRepository =
+                    factory.createPrietenieRepository(prietenieValidator, utilizatorRepository);
             factory.initializeFriendships(utilizatorRepository, prietenieRepository);
 
             PrietenieService prietenieService = new PrietenieService(utilizatorRepository, prietenieRepository);
             UtilizatorService utilizatorService = new UtilizatorService(utilizatorRepository, prietenieService);
             new UI(utilizatorService, prietenieService).start();
         } catch (RepositoryException e) {
-            System.err.println("Error initializing repositories: " + e.getMessage());
+            String message = e.getMessage();
+            if (e.getCause() != null && e.getCause().getMessage() != null) {
+                message += ": " + e.getCause().getMessage();
+            }
+            System.err.println("Error initializing repositories: " + message);
         }
     }
 }

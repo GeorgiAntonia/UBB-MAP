@@ -19,8 +19,8 @@ import java.util.stream.StreamSupport;
  * Provides operations for managing friendships and friendship communities.
  */
 public class PrietenieService {
-    private final Repository<Tuple<String, String>, Utilizator> utilizatorRepository;
-    private final Repository<Tuple<Tuple<String, String>, Tuple<String, String>>, Prietenie> prietenieRepository;
+    private final Repository<Long, Utilizator> utilizatorRepository;
+    private final Repository<Tuple<Long, Long>, Prietenie> prietenieRepository;
 
     /**
      * Creates a friendship service backed by the supplied repositories.
@@ -30,8 +30,8 @@ public class PrietenieService {
      * @throws IllegalArgumentException if either repository is {@code null}
      */
     public PrietenieService(
-            Repository<Tuple<String, String>, Utilizator> utilizatorRepository,
-            Repository<Tuple<Tuple<String, String>, Tuple<String, String>>, Prietenie> prietenieRepository) {
+            Repository<Long, Utilizator> utilizatorRepository,
+            Repository<Tuple<Long, Long>, Prietenie> prietenieRepository) {
         if (utilizatorRepository == null || prietenieRepository == null) {
             throw new IllegalArgumentException("The repositories cannot be null!");
         }
@@ -40,33 +40,30 @@ public class PrietenieService {
     }
 
     /**
-     * Creates a friendship between two distinct users.
+     * Creates a friendship between the users identified by their IDs.
      *
-     * @param id1 the name and surname of the first user
-     * @param id2 the name and surname of the second user
-     * @throws IllegalArgumentException if either user key is {@code null}
+     * @param id1 the ID of one user
+     * @param id2 the ID of the other user
+     * @throws IllegalArgumentException if either ID is {@code null}
      * @throws ServiceException if either user is absent or the friendship already exists
-     * @throws ValidationException if both user keys are equal or the friendship is invalid
+     * @throws ValidationException if both user IDs are equal or the friendship is invalid
      * @throws RepositoryException if persistence fails
-     * @throws UnsupportedOperationException if the configured repository is not implemented
      */
-    public void addPrietenie(Tuple<String, String> id1, Tuple<String, String> id2) {
-        Tuple<Tuple<String, String>, Tuple<String, String>> friendshipId = normalizedId(id1, id2);
+    public void addPrietenie(Long id1, Long id2) {
+        Tuple<Long, Long> friendshipId = normalizedId(id1, id2);
         Utilizator first = utilizatorRepository.findOne(id1);
         Utilizator second = utilizatorRepository.findOne(id2);
-
         if (first == null || second == null) {
             throw new ServiceException("The users do not exist!");
         }
         if (id1.equals(id2)) {
             throw new ValidationException("A user cannot be friends with themselves!");
         }
+
         if (prietenieRepository.findOne(friendshipId) != null) {
             throw new ServiceException("The friendship already exists!");
         }
-
-        Prietenie saved = prietenieRepository.save(new Prietenie(id1, id2));
-        if (saved != null) {
+        if (prietenieRepository.save(new Prietenie(id1, id2)) != null) {
             throw new ServiceException("The friendship already exists!");
         }
 
@@ -75,22 +72,20 @@ public class PrietenieService {
     }
 
     /**
-     * Removes the friendship between two users if it exists.
+     * Removes the friendship identified by the two user IDs if it exists.
      *
-     * @param id1 the name and surname of the first user
-     * @param id2 the name and surname of the second user
+     * @param id1 the ID of one user
+     * @param id2 the ID of the other user
      * @return the removed friendship, or {@code null} if it did not exist
-     * @throws IllegalArgumentException if either user key is {@code null}
+     * @throws IllegalArgumentException if either ID is {@code null}
      * @throws RepositoryException if persistence fails
-     * @throws UnsupportedOperationException if the configured repository is not implemented
      */
-    public Prietenie delPrietenie(Tuple<String, String> id1, Tuple<String, String> id2) {
-        Tuple<Tuple<String, String>, Tuple<String, String>> friendshipId = normalizedId(id1, id2);
+    public Prietenie delPrietenie(Long id1, Long id2) {
+        Tuple<Long, Long> friendshipId = normalizedId(id1, id2);
         Prietenie deleted = prietenieRepository.delete(friendshipId);
-
         if (deleted != null) {
-            Utilizator first = utilizatorRepository.findOne(id1);
-            Utilizator second = utilizatorRepository.findOne(id2);
+            Utilizator first = utilizatorRepository.findOne(friendshipId.getFirst());
+            Utilizator second = utilizatorRepository.findOne(friendshipId.getSecond());
             if (first != null && second != null) {
                 first.delPrieten(second);
                 second.delPrieten(first);
@@ -102,35 +97,39 @@ public class PrietenieService {
     /**
      * Removes every friendship belonging to the specified user.
      *
-     * @param id the name and surname identifying the user whose friendships should be removed
+     * @param id the database identifier of the user
      * @throws IllegalArgumentException if {@code id} is {@code null}
      * @throws RepositoryException if persistence fails
-     * @throws UnsupportedOperationException if the configured repository is not implemented
      */
-    public void delPrieteniiUtilizator(Tuple<String, String> id) {
+    public void delPrieteniiUtilizator(Long id) {
         if (id == null) {
-            throw new IllegalArgumentException("The user key cannot be null!");
+            throw new IllegalArgumentException("The user ID cannot be null!");
         }
-        Utilizator user = utilizatorRepository.findOne(id);
-        if (user == null) {
-            return;
-        }
-
-        List<Tuple<Tuple<String, String>, Tuple<String, String>>> friendshipIds =
+        List<Tuple<Long, Long>> friendshipIds =
                 StreamSupport.stream(prietenieRepository.findAll().spliterator(), false)
                         .map(Prietenie::getId)
                         .filter(friendshipId -> id.equals(friendshipId.getFirst()) || id.equals(friendshipId.getSecond()))
                         .collect(Collectors.toList());
-
-        friendshipIds.forEach(friendshipId ->
-                delPrietenie(friendshipId.getFirst(), friendshipId.getSecond()));
+        friendshipIds.forEach(friendshipId -> {
+            if (prietenieRepository.delete(friendshipId) != null) {
+                Utilizator first = utilizatorRepository.findOne(friendshipId.getFirst());
+                Utilizator second = utilizatorRepository.findOne(friendshipId.getSecond());
+                if (first != null && second != null) {
+                    first.delPrieten(second);
+                    second.delPrieten(first);
+                }
+            }
+        });
+        Utilizator user = utilizatorRepository.findOne(id);
+        if (user != null) {
+            user.getPrieteni().clear();
+        }
     }
 
     /**
      * Returns all friendships in the network.
      *
      * @return all friendships
-     * @throws UnsupportedOperationException if the configured repository is not implemented
      */
     public Iterable<Prietenie> getAllPrietenie() {
         return prietenieRepository.findAll();
@@ -140,12 +139,11 @@ public class PrietenieService {
      * Counts the connected components in the friendship graph.
      *
      * @return the number of communities; isolated users each count as one community
-     * @throws UnsupportedOperationException if the configured repository is not implemented
      */
     public int getNrComunitati() {
-        Set<Tuple<String, String>> visited = new HashSet<>();
+        Set<Long> visited = new HashSet<>();
         return (int) StreamSupport.stream(utilizatorRepository.findAll().spliterator(), false)
-                .filter(user -> !visited.contains(userKey(user)))
+                .filter(user -> !visited.contains(user.getId()))
                 .peek(user -> visitCommunity(user, visited))
                 .count();
     }
@@ -154,15 +152,14 @@ public class PrietenieService {
      * Finds the community containing the longest simple friendship path.
      *
      * @return name-and-surname pairs of users in that community, or an empty list if the network is empty
-     * @throws UnsupportedOperationException if the configured repository is not implemented
      */
     public List<Tuple<String, String>> getMostSociabilaComunitate() {
-        Set<Tuple<String, String>> visited = new HashSet<>();
+        Set<Long> visited = new HashSet<>();
         List<Tuple<String, String>> longestCommunity = new ArrayList<>();
         List<Integer> longestPath = new ArrayList<>();
 
         StreamSupport.stream(utilizatorRepository.findAll().spliterator(), false)
-                .filter(user -> !visited.contains(userKey(user)))
+                .filter(user -> !visited.contains(user.getId()))
                 .forEach(user -> {
                     List<Utilizator> component = new ArrayList<>();
                     collectCommunity(user, visited, component);
@@ -171,65 +168,36 @@ public class PrietenieService {
                         longestPath.clear();
                         longestPath.add(componentLongestPath);
                         longestCommunity.clear();
-                        longestCommunity.addAll(component.stream().map(this::userKey).collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new)));
+                        longestCommunity.addAll(component.stream()
+                                .map(this::userName)
+                                .collect(Collectors.toList()));
                     }
                 });
         return longestCommunity;
     }
 
-    /**
-     * Creates the canonical friendship key in name-and-surname order.
-     *
-     * @param id1 the name and surname of one user
-     * @param id2 the name and surname of the other user
-     * @return the user keys in ascending order
-     * @throws IllegalArgumentException if either key is {@code null}
-     */
-    private Tuple<Tuple<String, String>, Tuple<String, String>> normalizedId(
-            Tuple<String, String> id1, Tuple<String, String> id2) {
-        if (id1 == null || id2 == null || id1.getFirst() == null || id1.getSecond() == null ||
-                id2.getFirst() == null || id2.getSecond() == null) {
-            throw new IllegalArgumentException("The user identification data cannot be null!");
+    private Tuple<Long, Long> normalizedId(Long id1, Long id2) {
+        if (id1 == null || id2 == null) {
+            throw new IllegalArgumentException("The user IDs cannot be null!");
         }
-        int compareNume = id1.getFirst().compareTo(id2.getFirst());
-        int compare = compareNume != 0 ? compareNume : id1.getSecond().compareTo(id2.getSecond());
-        return compare <= 0 ? new Tuple<>(id1, id2) : new Tuple<>(id2, id1);
+        return id1 <= id2 ? new Tuple<>(id1, id2) : new Tuple<>(id2, id1);
     }
 
-    /**
-     * Marks every user reachable from the given user as visited.
-     *
-     * @param user the starting user
-     * @param visited the user keys already visited during traversal
-     */
-    private void visitCommunity(Utilizator user, Set<Tuple<String, String>> visited) {
-        visited.add(userKey(user));
+    private void visitCommunity(Utilizator user, Set<Long> visited) {
+        visited.add(user.getId());
         user.getPrieteni().stream()
-                .filter(friend -> !visited.contains(userKey(friend)))
+                .filter(friend -> !visited.contains(friend.getId()))
                 .forEach(friend -> visitCommunity(friend, visited));
     }
 
-    /**
-     * Collects all users reachable from the given user.
-     *
-     * @param user the starting user
-     * @param visited the user keys already visited during traversal
-     * @param component the list to populate with users in this community
-     */
-    private void collectCommunity(Utilizator user, Set<Tuple<String, String>> visited, List<Utilizator> component) {
-        visited.add(userKey(user));
+    private void collectCommunity(Utilizator user, Set<Long> visited, List<Utilizator> component) {
+        visited.add(user.getId());
         component.add(user);
         user.getPrieteni().stream()
-                .filter(friend -> !visited.contains(userKey(friend)))
+                .filter(friend -> !visited.contains(friend.getId()))
                 .forEach(friend -> collectCommunity(friend, visited, component));
     }
 
-    /**
-     * Finds the longest simple path among all users in a connected component.
-     *
-     * @param component the users belonging to one community
-     * @return the longest path length, measured in friendship edges
-     */
     private int findLongestPathInComponent(List<Utilizator> component) {
         return component.stream()
                 .mapToInt(start -> findLongestPath(start, new HashSet<>()))
@@ -237,25 +205,18 @@ public class PrietenieService {
                 .orElse(0);
     }
 
-    /**
-     * Finds the longest simple path starting at a user.
-     *
-     * @param user the current user
-     * @param pathVisited the user keys on the current path
-     * @return the longest path length from {@code user}, measured in edges
-     */
-    private int findLongestPath(Utilizator user, Set<Tuple<String, String>> pathVisited) {
-        pathVisited.add(userKey(user));
+    private int findLongestPath(Utilizator user, Set<Long> pathVisited) {
+        pathVisited.add(user.getId());
         int longestPath = user.getPrieteni().stream()
-                .filter(friend -> !pathVisited.contains(userKey(friend)))
+                .filter(friend -> !pathVisited.contains(friend.getId()))
                 .mapToInt(friend -> 1 + findLongestPath(friend, pathVisited))
                 .max()
                 .orElse(0);
-        pathVisited.remove(userKey(user));
+        pathVisited.remove(user.getId());
         return longestPath;
     }
 
-    private Tuple<String, String> userKey(Utilizator user) {
+    private Tuple<String, String> userName(Utilizator user) {
         return new Tuple<>(user.getNume(), user.getPrenume());
     }
 }

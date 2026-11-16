@@ -5,6 +5,7 @@ import domain.Validator;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 
@@ -18,6 +19,7 @@ public class InMemoryRepository<ID, E> implements Repository<ID, E> {
     private Validator<E> validator;
     Map<ID, E> entities;
     private final Function<E, ID> keyExtractor;
+    private final Consumer<E> idAssigner;
 
     /**
      * Creates an empty repository using the supplied validator.
@@ -25,8 +27,20 @@ public class InMemoryRepository<ID, E> implements Repository<ID, E> {
      * @param validator the validator used
      */
     public InMemoryRepository(Validator<E> validator, Function<E, ID> keyExtractor) {
+        this(validator, keyExtractor, null);
+    }
+
+    /**
+     * Creates an empty repository and optionally assigns IDs before storing entities.
+     *
+     * @param validator the validator used
+     * @param keyExtractor extracts the repository key
+     * @param idAssigner assigns an ID when an entity does not yet have one
+     */
+    public InMemoryRepository(Validator<E> validator, Function<E, ID> keyExtractor, Consumer<E> idAssigner) {
         this.validator = validator;
         this.keyExtractor = keyExtractor;
+        this.idAssigner = idAssigner;
         entities = new HashMap<>();
     }
 
@@ -69,6 +83,7 @@ public class InMemoryRepository<ID, E> implements Repository<ID, E> {
             throw new IllegalArgumentException("The entity cannot be null!");
         }
         validator.validate(entity);
+        assignIdIfMissing(entity);
         ID key = keyExtractor.apply(entity);
         if (entities.containsKey(key)) {
             return entities.get(key);
@@ -112,5 +127,11 @@ public class InMemoryRepository<ID, E> implements Repository<ID, E> {
             return null;
         }
         return entity;
+    }
+
+    protected void assignIdIfMissing(E entity) {
+        if (idAssigner != null && keyExtractor.apply(entity) == null) {
+            idAssigner.accept(entity);
+        }
     }
 }

@@ -12,6 +12,7 @@ import java.nio.file.Paths;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -33,9 +34,46 @@ public abstract class AbstractFileRepository<ID, E> extends InMemoryRepository<I
      * @param filename the relative or absolute file path
      */
     public AbstractFileRepository(Validator<E> validator, String filename, Function<E, ID> keyExtractor) {
-        super(validator, keyExtractor);
+        this(validator, filename, keyExtractor, null);
+    }
+
+    /**
+     * Creates a repository and loads its initial contents from a text file.
+     *
+     * @param validator the validator applied to loaded and saved entities
+     * @param filename the relative or absolute file path
+     * @param keyExtractor extracts the repository key
+     * @param idAssigner assigns an ID to entities without one
+     */
+    public AbstractFileRepository(
+            Validator<E> validator,
+            String filename,
+            Function<E, ID> keyExtractor,
+            Consumer<E> idAssigner) {
+        this(validator, filename, keyExtractor, idAssigner, true);
+    }
+
+    /**
+     * Creates a repository with optional deferred loading for subclasses that need
+     * initialized fields while parsing file records.
+     *
+     * @param validator the validator applied to loaded and saved entities
+     * @param filename the relative or absolute file path
+     * @param keyExtractor extracts the repository key
+     * @param idAssigner assigns an ID to entities without one
+     * @param loadImmediately whether to load the file in this constructor
+     */
+    protected AbstractFileRepository(
+            Validator<E> validator,
+            String filename,
+            Function<E, ID> keyExtractor,
+            Consumer<E> idAssigner,
+            boolean loadImmediately) {
+        super(validator, keyExtractor, idAssigner);
         this.filename = filename;
-        loadData();
+        if (loadImmediately) {
+            loadData();
+        }
     }
 
     /**
@@ -55,7 +93,7 @@ public abstract class AbstractFileRepository<ID, E> extends InMemoryRepository<I
     protected abstract String createEntityAsString(E entity);
 
     /** Loads valid entities from the configured file, skipping malformed records. */
-    private void loadData() {
+    protected final void loadData() {
         Path path = Paths.get(filename);
         if (!Files.exists(path)) return;
 

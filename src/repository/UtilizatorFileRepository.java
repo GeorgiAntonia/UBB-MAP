@@ -4,8 +4,11 @@ import domain.Utilizator;
 import domain.Tuple;
 import domain.Validator;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 /** Loads and stores users in a semicolon-delimited text file. */
-public class UtilizatorFileRepository extends AbstractFileRepository<Tuple<String, String>, Utilizator> {
+public class UtilizatorFileRepository extends AbstractFileRepository<Long, Utilizator> {
+    private final AtomicLong lastId;
 
     /**
      * Creates a file repository for users.
@@ -14,26 +17,38 @@ public class UtilizatorFileRepository extends AbstractFileRepository<Tuple<Strin
      * @param filename the user-data file path
      */
     public UtilizatorFileRepository(Validator<Utilizator> validator, String filename) {
-        super(validator, filename, entity -> new Tuple<>(entity.getNume(), entity.getPrenume()));
+        super(validator, filename, Utilizator::getId, null, false);
+        lastId = new AtomicLong();
+        loadData();
+    }
+
+    @Override
+    protected void assignIdIfMissing(Utilizator entity) {
+        if (entity.getId() == null) {
+            entity.setId(lastId.incrementAndGet());
+        }
     }
 
     /**
-     * Parses a user record containing a first name and a last name, or a legacy
-     * record containing an ID followed by those names.
+     * Parses a user record containing an ID, first name, and last name, or a legacy
+     * record containing only the first and last names.
      *
      * @param line the semicolon-delimited user record
      * @return the parsed user
-     * @throws IllegalArgumentException if the record has an invalid field count or legacy ID
+     * @throws IllegalArgumentException if the record has an invalid field count or ID
      */
     @Override
     protected Utilizator extractEntity(String line) {
         String[] parts = line.split(";", -1);
         if (parts.length == 3) {
-            long legacyId = Long.parseLong(parts[0]);
-            if (legacyId <= 0) {
-                throw new IllegalArgumentException("The legacy ID must be strictly positive.");
+            long id = Long.parseLong(parts[0]);
+            if (id <= 0) {
+                throw new IllegalArgumentException("The user ID must be strictly positive.");
             }
-            return new Utilizator(parts[2], parts[1]);
+            lastId.accumulateAndGet(id, Math::max);
+            Utilizator user = new Utilizator(parts[2], parts[1]);
+            user.setId(id);
+            return user;
         }
         if (parts.length != 2) {
             throw new IllegalArgumentException("A user must have exactly 2 fields.");
@@ -49,6 +64,7 @@ public class UtilizatorFileRepository extends AbstractFileRepository<Tuple<Strin
      */
     @Override
     protected String createEntityAsString(Utilizator entity) {
-        return entity.getPrenume() + ";" + entity.getNume();
+        return entity.getId() + ";" + entity.getPrenume() + ";" + entity.getNume();
     }
+
 }
